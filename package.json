@@ -1,0 +1,21 @@
+{
+  "name": "expense-tracker",
+  "version": "1.0.0",
+  "description": "Full-stack expense tracker with React, Node.js, Express, and MongoDB — featuring real-time financial summaries, RBAC, and optimised aggregation pipelines",
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "dev": "concurrently \"cd server && npm run dev\" \"cd client && npm run dev\"",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "start": "cd server && npm start",
+    "seed": "cd server && node utils/seed.js",
+    "test": "cd server && npm test"
+  },
+  "keywords": ["expense-tracker", "react", "node", "mongodb", "typescript", "fintech"],
+  "author": "Anuhya Parlapalli",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
