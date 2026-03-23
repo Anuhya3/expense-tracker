@@ -21,7 +21,12 @@ const app = express();
 
 // Security middleware
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
+app.use(cors({
+  origin: process.env.CLIENT_URL
+    ? [process.env.CLIENT_URL, /\.vercel\.app$/]
+    : ['http://localhost:5173', 'http://localhost:5174', /\.vercel\.app$/],
+  credentials: true
+}));
 app.use(express.json({ limit: '10kb' }));
 app.use(morgan('dev'));
 
@@ -59,17 +64,25 @@ app.use((err, req, res, next) => {
 });
 
 // Database connection & server start
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/expense-tracker';
 
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log('✅ MongoDB connected');
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-  })
-  .catch(err => {
-    console.error('❌ MongoDB connection error:', err.message);
-    process.exit(1);
-  });
+if (process.env.VERCEL !== '1') {
+  // Local development — connect then start HTTP server
+  mongoose.connect(MONGODB_URI)
+    .then(() => {
+      console.log('✅ MongoDB connected');
+      app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    })
+    .catch(err => {
+      console.error('❌ MongoDB connection error:', err.message);
+      process.exit(1);
+    });
+} else {
+  // Vercel serverless — connect once, Mongoose reuses the connection on warm invocations
+  mongoose.connect(MONGODB_URI).catch(err =>
+    console.error('❌ MongoDB connection error:', err.message)
+  );
+}
 
 module.exports = app;
