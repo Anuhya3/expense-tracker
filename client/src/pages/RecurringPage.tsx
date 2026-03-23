@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useRecurring } from '../hooks/useData';
 import { api } from '../utils/api';
 import { formatCurrency, formatDate, getCategoryInfo } from '../utils/format';
-import { RecurringExpense, CategoryId } from '../types';
+import { RecurringExpense, CategoryId, RecurringFrequency } from '../types';
 import {
   Plus, Repeat, Edit3, Trash2, X, RefreshCw,
   CheckCircle, PauseCircle, PlayCircle
@@ -303,7 +303,7 @@ function RecurringModal({ item, onClose, onSave }: {
               <select
                 className="input dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                 value={form.frequency}
-                onChange={e => setForm(f => ({ ...f, frequency: e.target.value }))}
+                onChange={e => setForm(f => ({ ...f, frequency: e.target.value as RecurringFrequency }))}
               >
                 <option value="weekly">Weekly</option>
                 <option value="monthly">Monthly</option>
