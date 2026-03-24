@@ -64,6 +64,10 @@ jobs:
         working-directory: client
         run: npx tsc --noEmit
 
+      - name: Run Vitest tests
+        working-directory: client
+        run: npm test
+
       - name: Lint
         working-directory: client
         run: npx eslint . --ext .ts,.tsx
