@@ -4,6 +4,11 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const { ApolloServer } = require('@apollo/server');
+const { expressMiddleware } = require('@apollo/server/express4');
+const typeDefs = require('./graphql/typeDefs');
+const resolvers = require('./graphql/resolvers');
+const buildContext = require('./graphql/context');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
@@ -18,6 +23,30 @@ const groupRoutes = require('./routes/groups');
 const currencyRoutes = require('./routes/currencies');
 
 const app = express();
+
+// ── Apollo Server setup ────────────────────────────────────────────────────
+const apolloServer = new ApolloServer({
+  typeDefs,
+  resolvers,
+  // Sandbox is enabled by default in non-production environments
+  introspection: true,
+  ...(process.env.NODE_ENV === 'production' && {
+    plugins: [
+      // Disable landing page in production (keeps introspection for tooling)
+      {
+        async serverWillStart() {
+          return {
+            async renderLandingPage() {
+              return {
+                html: '<html><body><h2>ExpenseFlow GraphQL API</h2><p>Introspection is available. Use a GraphQL client to query <code>/graphql</code>.</p></body></html>'
+              };
+            }
+          };
+        }
+      }
+    ]
+  })
+});
 
 // Security middleware
 app.use(helmet());
@@ -51,37 +80,63 @@ app.use('/api/groups', groupRoutes);
 app.use('/api/currencies', currencyRoutes);
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // Global error handler
-app.use((err, req, res, next) => {
+app.use((err, _req, res, _next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({
     error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message
   });
 });
 
-// Database connection & server start
+// ── Async startup: start Apollo, mount /graphql, connect DB ───────────────
 const PORT = process.env.PORT || 5001;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/expense-tracker';
 
-if (process.env.VERCEL !== '1') {
-  // Local development — connect then start HTTP server
-  mongoose.connect(MONGODB_URI)
-    .then(() => {
-      console.log('✅ MongoDB connected');
-      app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+const corsOptions = {
+  origin: process.env.CLIENT_URL
+    ? [process.env.CLIENT_URL, /\.vercel\.app$/]
+    : ['http://localhost:5173', 'http://localhost:5174', /\.vercel\.app$/],
+  credentials: true
+};
+
+async function startServer() {
+  // Apollo Server 4 must be started before expressMiddleware is used
+  await apolloServer.start();
+
+  // Mount GraphQL at /graphql — Apollo Sandbox auto-enabled in development
+  app.use(
+    '/graphql',
+    cors(corsOptions),
+    express.json({ limit: '10mb' }), // higher limit for query batching
+    expressMiddleware(apolloServer, {
+      context: buildContext
     })
-    .catch(err => {
-      console.error('❌ MongoDB connection error:', err.message);
-      process.exit(1);
+  );
+
+  await mongoose.connect(MONGODB_URI);
+  console.log('✅ MongoDB connected');
+
+  if (process.env.VERCEL !== '1') {
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🔭 GraphQL sandbox: http://localhost:${PORT}/graphql`);
     });
+  }
+}
+
+if (process.env.VERCEL !== '1') {
+  startServer().catch(err => {
+    console.error('❌ Startup error:', err.message);
+    process.exit(1);
+  });
 } else {
-  // Vercel serverless — connect once, Mongoose reuses the connection on warm invocations
-  mongoose.connect(MONGODB_URI).catch(err =>
-    console.error('❌ MongoDB connection error:', err.message)
+  // Vercel serverless: start Apollo and connect DB eagerly on cold start
+  startServer().catch(err =>
+    console.error('❌ Startup error:', err.message)
   );
 }
 
