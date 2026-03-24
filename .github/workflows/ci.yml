@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      mongodb:
+      mongo:
         image: mongo:7
         ports:
           - 27017:27017
@@ -43,8 +43,8 @@ jobs:
         run: npm test -- --passWithNoTests
         env:
           NODE_ENV: test
-          JWT_SECRET: ci-test-secret
-          MONGODB_URI: mongodb://localhost:27017/expense-tracker-test
+          JWT_SECRET: test-secret-key
+          MONGODB_URI: mongodb://localhost:27017/test
           REDIS_URL: ""
 
       - name: Lint
