@@ -11,6 +11,10 @@ const resolvers = require('./graphql/resolvers');
 const buildContext = require('./graphql/context');
 require('dotenv').config();
 
+// Initialise Redis client eagerly so the connection is ready before requests arrive.
+// getClient() is safe to call multiple times — it returns the singleton.
+require('./utils/redis').getClient();
+
 const authRoutes = require('./routes/auth');
 const expenseRoutes = require('./routes/expenses');
 const categoryRoutes = require('./routes/categories');

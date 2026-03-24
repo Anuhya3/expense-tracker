@@ -16,6 +16,22 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: expenseflow_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   # ── Express API ────────────────────────────────────────────────────────────
   server:
     build:
@@ -26,12 +42,15 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "5001:5001"
     environment:
       NODE_ENV: production
       PORT: 5001
       MONGODB_URI: mongodb://mongo:27017/expense-tracker
+      REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-change_this_secret_in_production}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       CLIENT_URL: http://localhost:3000
@@ -57,4 +76,6 @@ services:
 
 volumes:
   mongo_data:
+    driver: local
+  redis_data:
     driver: local

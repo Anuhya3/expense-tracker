@@ -4,12 +4,16 @@ const Expense = require('../models/Expense');
 const Budget = require('../models/Budget');
 const RecurringExpense = require('../models/RecurringExpense');
 const { protect } = require('../middleware/auth');
+const { createCacheMiddleware } = require('../middleware/cache');
 
 const router = express.Router();
 router.use(protect);
 
-// GET /api/analytics/summary
-router.get('/summary', async (req, res) => {
+const cache5m = createCacheMiddleware(300); // 5-minute TTL
+const cache2m = createCacheMiddleware(120); // 2-minute TTL
+
+// GET /api/analytics/summary — cached 5 min per user
+router.get('/summary', cache5m, async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.user._id);
     const now = new Date();
@@ -58,8 +62,8 @@ router.get('/summary', async (req, res) => {
   }
 });
 
-// GET /api/analytics/by-category
-router.get('/by-category', async (req, res) => {
+// GET /api/analytics/by-category — cached 5 min per user
+router.get('/by-category', cache5m, async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.user._id);
     const months = parseInt(req.query.months) || 1;
@@ -85,8 +89,8 @@ router.get('/by-category', async (req, res) => {
   }
 });
 
-// GET /api/analytics/trends
-router.get('/trends', async (req, res) => {
+// GET /api/analytics/trends — cached 2 min per user
+router.get('/trends', cache2m, async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.user._id);
     const days = parseInt(req.query.days) || 30;

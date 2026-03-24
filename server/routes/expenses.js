@@ -5,6 +5,7 @@ const Expense = require('../models/Expense');
 const Activity = require('../models/Activity');
 const { protect } = require('../middleware/auth');
 const { convert } = require('../utils/exchangeRates');
+const { invalidateUserCache } = require('../middleware/cache');
 
 const router = express.Router();
 router.use(protect);
@@ -242,6 +243,9 @@ router.post('/', [
 
     const expense = await Expense.create(expenseData);
 
+    // Invalidate analytics cache so dashboard reflects the new expense
+    invalidateUserCache(req.user._id.toString()).catch(() => {});
+
     Activity.create({
       user: req.user._id,
       action: 'expense_created',
@@ -295,6 +299,9 @@ router.put('/:id', async (req, res) => {
     );
     if (!expense) return res.status(404).json({ error: 'Expense not found' });
 
+    // Invalidate analytics cache so dashboard reflects the update
+    invalidateUserCache(req.user._id.toString()).catch(() => {});
+
     Activity.create({
       user: req.user._id,
       action: 'expense_updated',
@@ -314,6 +321,9 @@ router.delete('/:id', async (req, res) => {
   try {
     const expense = await Expense.findOneAndDelete({ _id: req.params.id, user: req.user._id });
     if (!expense) return res.status(404).json({ error: 'Expense not found' });
+
+    // Invalidate analytics cache so dashboard reflects the deletion
+    invalidateUserCache(req.user._id.toString()).catch(() => {});
 
     Activity.create({
       user: req.user._id,
