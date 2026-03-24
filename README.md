@@ -7,6 +7,72 @@ A production-grade expense tracking application built with **React**, **TypeScri
 ![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)
 ![MongoDB](https://img.shields.io/badge/MongoDB-7.0-47A248?logo=mongodb&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-4.18-000000?logo=express&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+
+---
+
+## 🐳 Docker — Run the Entire Stack with One Command
+
+The full application (React frontend, Express API, MongoDB) runs in isolated containers with a single command.
+
+### Prerequisites
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+
+### Start everything
+
+```bash
+docker-compose up --build
+```
+
+Then open **http://localhost:3000** in your browser.
+
+| Service | URL |
+|---|---|
+| Frontend (React + Nginx) | http://localhost:3000 |
+| Backend API (Express) | http://localhost:5001 |
+| MongoDB | localhost:27017 |
+
+### Seed demo data
+
+```bash
+docker-compose exec server npm run seed
+```
+
+Login with:
+```
+Email:    demo@expense.app
+Password: demo123
+```
+
+### Other useful commands
+
+```bash
+# Run in background (detached)
+docker-compose up --build -d
+
+# Stop all containers
+docker-compose down
+
+# Stop and remove all data (wipe MongoDB volume)
+docker-compose down -v
+
+# View logs
+docker-compose logs -f server
+docker-compose logs -f client
+
+# Rebuild a single service
+docker-compose up --build server
+```
+
+### Environment variables (optional)
+
+Create a `.env` file at the project root to override defaults:
+
+```env
+JWT_SECRET=your_super_secret_key
+JWT_EXPIRES_IN=7d
+ANTHROPIC_API_KEY=sk-ant-...   # optional — enables AI receipt scanning
+```
 
 ---
 
