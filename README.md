@@ -2,6 +2,7 @@
 
 A production-grade expense tracking application built with **React**, **TypeScript**, **Node.js**, **Express**, and **MongoDB**. Features real-time financial summaries, category budgets, interactive analytics dashboards, dark mode, recurring expenses, smart insights, drag-and-drop dashboard, CSV/PDF export, activity feed, and tags/splits.
 
+![CI](https://github.com/Anuhya3/expense-tracker/actions/workflows/ci.yml/badge.svg)
 ![React](https://img.shields.io/badge/React-18.2-61DAFB?logo=react&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178C6?logo=typescript&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)
