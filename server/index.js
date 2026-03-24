@@ -96,7 +96,7 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-// ── Async startup: start Apollo, mount /graphql, connect DB ───────────────
+// ── Async startup: start Apollo + connect DB ──────────────────────────────
 const PORT = process.env.PORT || 5001;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/expense-tracker';
 
@@ -108,40 +108,37 @@ const corsOptions = {
 };
 
 async function startServer() {
-  // Apollo Server 4 must be started before expressMiddleware is used
+  // Apollo Server 4 must be started before expressMiddleware handles requests
   await apolloServer.start();
-
-  // Mount GraphQL at /graphql — Apollo Sandbox auto-enabled in development
-  app.use(
-    '/graphql',
-    cors(corsOptions),
-    express.json({ limit: '10mb' }), // higher limit for query batching
-    expressMiddleware(apolloServer, {
-      context: buildContext
-    })
-  );
-
   await mongoose.connect(MONGODB_URI);
   console.log('✅ MongoDB connected');
+}
 
-  if (process.env.VERCEL !== '1') {
+// Fire startup immediately and save the promise.
+// On Vercel the module is loaded once per cold start; subsequent requests
+// reuse the same module so startupPromise is already resolved.
+const startupPromise = startServer().catch(err =>
+  console.error('❌ Startup error:', err.message)
+);
+
+// Mount /graphql SYNCHRONOUSLY so the route exists the moment Express
+// receives any request — even on a cold start.  The inline gate middleware
+// ensures Apollo is fully started before expressMiddleware runs.
+app.use(
+  '/graphql',
+  cors(corsOptions),
+  express.json({ limit: '10mb' }),
+  (req, res, next) => startupPromise.then(() => next()).catch(next),
+  expressMiddleware(apolloServer, { context: buildContext })
+);
+
+if (process.env.VERCEL !== '1') {
+  startupPromise.then(() => {
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🔭 GraphQL sandbox: http://localhost:${PORT}/graphql`);
     });
-  }
-}
-
-if (process.env.VERCEL !== '1') {
-  startServer().catch(err => {
-    console.error('❌ Startup error:', err.message);
-    process.exit(1);
   });
-} else {
-  // Vercel serverless: start Apollo and connect DB eagerly on cold start
-  startServer().catch(err =>
-    console.error('❌ Startup error:', err.message)
-  );
 }
 
 module.exports = app;
