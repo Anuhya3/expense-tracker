@@ -10,6 +10,15 @@ A production-grade expense tracking application built with **React**, **TypeScri
 ![Express](https://img.shields.io/badge/Express-4.18-000000?logo=express&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
+## Live Deployments
+
+| | URL |
+|---|---|
+| **Landing Page** | https://landing-roan-alpha-72.vercel.app |
+| **App (React)** | https://client-six-inky-54.vercel.app |
+| **API (Express)** | https://server-one-dusky-56.vercel.app |
+| **GraphQL** | https://server-one-dusky-56.vercel.app/graphql |
+
 ---
 
 ## 🐳 Docker — Run the Entire Stack with One Command
