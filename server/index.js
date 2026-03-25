@@ -122,14 +122,26 @@ const startupPromise = startServer().catch(err =>
 );
 
 // Mount /graphql SYNCHRONOUSLY so the route exists the moment Express
-// receives any request — even on a cold start.  The inline gate middleware
-// ensures Apollo is fully started before expressMiddleware runs.
+// receives any request — even on a cold start.
+// expressMiddleware() must not be called until after apolloServer.start()
+// resolves (Apollo 4 enforces this), so we build it lazily on first request
+// and cache it for all subsequent ones.
+let graphqlHandler = null;
 app.use(
   '/graphql',
   cors(corsOptions),
   express.json({ limit: '10mb' }),
-  (req, res, next) => startupPromise.then(() => next()).catch(next),
-  expressMiddleware(apolloServer, { context: buildContext })
+  async (req, res, next) => {
+    try {
+      await startupPromise; // ensures apolloServer.start() is done
+      if (!graphqlHandler) {
+        graphqlHandler = expressMiddleware(apolloServer, { context: buildContext });
+      }
+      return graphqlHandler(req, res, next);
+    } catch (err) {
+      next(err);
+    }
+  }
 );
 
 if (process.env.VERCEL !== '1') {
