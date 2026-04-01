@@ -71,6 +71,18 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
+// DB-ready gate — every /api request waits for mongoose.connect() to resolve.
+// Without this, requests that arrive during a cold start race the connection
+// and Mongoose buffers queries until its 10s timeout fires → HTTP 500.
+app.use('/api', async (_req, res, next) => {
+  try {
+    await startupPromise;
+    next();
+  } catch (err) {
+    res.status(503).json({ error: 'Service starting up, please retry' });
+  }
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/expenses', expenseRoutes);
@@ -117,9 +129,10 @@ async function startServer() {
 // Fire startup immediately and save the promise.
 // On Vercel the module is loaded once per cold start; subsequent requests
 // reuse the same module so startupPromise is already resolved.
-const startupPromise = startServer().catch(err =>
-  console.error('❌ Startup error:', err.message)
-);
+// NOTE: do NOT .catch() here — the middleware below needs it to reject so
+// it can return a 503 instead of silently timing out.
+const startupPromise = startServer();
+startupPromise.catch(err => console.error('❌ Startup error:', err.message));
 
 // Mount /graphql SYNCHRONOUSLY so the route exists the moment Express
 // receives any request — even on a cold start.
