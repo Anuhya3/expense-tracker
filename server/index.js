@@ -48,7 +48,7 @@ const apolloServer = new ApolloServer({
           };
         }
       }
-    ]
+      ]
   })
 });
 
@@ -56,7 +56,7 @@ const apolloServer = new ApolloServer({
 app.use(helmet());
 app.use(cors({
   origin: process.env.CLIENT_URL
-    ? [process.env.CLIENT_URL, /\.vercel\.app$/]
+  ? [process.env.CLIENT_URL, /\.vercel\.app$/]
     : ['http://localhost:5173', 'http://localhost:5174', /\.vercel\.app$/],
   credentials: true
 }));
@@ -71,12 +71,36 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-// DB-ready gate — every /api request waits for mongoose.connect() to resolve.
-// Without this, requests that arrive during a cold start race the connection
-// and Mongoose buffers queries until its 10s timeout fires → HTTP 500.
+// MongoDB connection health handling.
+// On Vercel, a warm serverless instance reuses the same process (and the
+// same already-resolved startupPromise) across many invocations. If the
+// underlying MongoDB connection is ever dropped in the background (Atlas
+// idle timeout, network blip, etc.) the old gate kept letting requests
+// through because it only checked whether the first connect() had ever
+// resolved, never whether the connection was still alive. Queries then sat
+// in Mongoose's command buffer waiting for a connection that was never
+// coming back, and failed with "buffering timed out after 10000ms". These
+// listeners give us visibility, and ensureDbReady() below makes every
+// request actively verify (and if needed, re-establish) the connection
+// instead of trusting a stale promise forever.
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err.message);
+});
+mongoose.connection.on('disconnected', () => {
+  console.warn('MongoDB disconnected -- will attempt to reconnect on next request');
+});
+
+const ensureDbReady = async () => {
+  if (mongoose.connection.readyState === 1) return;
+  await mongoose.connect(MONGODB_URI);
+};
+
+// DB-ready gate — every /api request waits for MongoDB to actually be ready,
+// re-connecting if a previously-established connection has since dropped.
 app.use('/api', async (_req, res, next) => {
   try {
     await startupPromise;
+    await ensureDbReady();
     next();
   } catch (err) {
     res.status(503).json({ error: 'Service starting up, please retry' });
@@ -114,16 +138,16 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/expens
 
 const corsOptions = {
   origin: process.env.CLIENT_URL
-    ? [process.env.CLIENT_URL, /\.vercel\.app$/]
+  ? [process.env.CLIENT_URL, /\.vercel\.app$/]
     : ['http://localhost:5173', 'http://localhost:5174', /\.vercel\.app$/],
   credentials: true
 };
 
 async function startServer() {
   // Apollo Server 4 must be started before expressMiddleware handles requests
-  await apolloServer.start();
+await apolloServer.start();
   await mongoose.connect(MONGODB_URI);
-  console.log('✅ MongoDB connected');
+  console.log('MongoDB connected');
 }
 
 // Fire startup immediately and save the promise.
@@ -132,7 +156,7 @@ async function startServer() {
 // NOTE: do NOT .catch() here — the middleware below needs it to reject so
 // it can return a 503 instead of silently timing out.
 const startupPromise = startServer();
-startupPromise.catch(err => console.error('❌ Startup error:', err.message));
+startupPromise.catch(err => console.error('Startup error:', err.message));
 
 // Mount /graphql SYNCHRONOUSLY so the route exists the moment Express
 // receives any request — even on a cold start.
@@ -147,6 +171,7 @@ app.use(
   async (req, res, next) => {
     try {
       await startupPromise; // ensures apolloServer.start() is done
+    await ensureDbReady();
       if (!graphqlHandler) {
         graphqlHandler = expressMiddleware(apolloServer, { context: buildContext });
       }
@@ -155,13 +180,13 @@ app.use(
       next(err);
     }
   }
-);
+  );
 
 if (process.env.VERCEL !== '1') {
   startupPromise.then(() => {
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`🔭 GraphQL sandbox: http://localhost:${PORT}/graphql`);
+      console.log(`Server running on port ${PORT}`);
+      console.log(`GraphQL sandbox: http://localhost:${PORT}/graphql`);
     });
   });
 }
