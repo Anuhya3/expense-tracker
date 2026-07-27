@@ -18,29 +18,32 @@ router.post('/register', [
   body('name').trim().notEmpty().withMessage('Name is required'),
   body('email').isEmail().withMessage('Valid email is required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
-], async (req, res) => {
+  ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, email, password, currency } = req.body;
+  const { name, email, password, currency } = req.body;
 
-    const existingUser = await User.findOne({ email });
+  const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
-    const user = await User.create({ name, email, password, currency });
+  const user = await User.create({ name, email, password, currency });
     const token = signToken(user._id);
 
-    res.status(201).json({
-      token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role, currency: user.currency }
-    });
+  res.status(201).json({
+    token,
+    user: { id: user._id, name: user.name, email: user.email, role: user.role, currency: user.currency }
+  });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    // Forward to the global error handler instead of returning err.message
+  // directly — that handler already returns a safe generic message in
+  // production and only exposes raw details in development.
+  next(err);
   }
 });
 
@@ -48,35 +51,38 @@ router.post('/register', [
 router.post('/login', [
   body('email').isEmail().withMessage('Valid email is required'),
   body('password').notEmpty().withMessage('Password is required')
-], async (req, res) => {
+  ], async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password } = req.body;
+  const { email, password } = req.body;
     const user = await User.findOne({ email }).select('+password');
 
-    if (!user || !(await user.comparePassword(password))) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
+  if (!user || !(await user.comparePassword(password))) {
+    return res.status(401).json({ error: 'Invalid email or password' });
+  }
 
-    const token = signToken(user._id);
+  const token = signToken(user._id);
 
-    Activity.create({
-      user: user._id,
-      action: 'login',
-      entityType: 'auth',
-      metadata: { email: user.email }
-    }).catch(() => {});
+  Activity.create({
+    user: user._id,
+    action: 'login',
+    entityType: 'auth',
+    metadata: { email: user.email }
+  }).catch(() => {});
 
-    res.json({
-      token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role, currency: user.currency }
-    });
+  res.json({
+    token,
+    user: { id: user._id, name: user.name, email: user.email, role: user.role, currency: user.currency }
+  });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    // Forward to the global error handler instead of returning err.message
+  // directly — that handler already returns a safe generic message in
+  // production and only exposes raw details in development.
+  next(err);
   }
 });
 
