@@ -1,42 +1,106 @@
-const AI_AVAILABLE = !!process.env.ANTHROPIC_API_KEY;
+const CLAUDE_AVAILABLE = !!process.env.ANTHROPIC_API_KEY;
+const GEMINI_AVAILABLE = !!process.env.GEMINI_API_KEY;
+const AI_AVAILABLE = CLAUDE_AVAILABLE || GEMINI_AVAILABLE;
 
-async function callClaude({ messages, max_tokens = 500 }) {
-  if (!AI_AVAILABLE) return null; // signals caller to use mock
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 
+// Google Gemini — free-tier vision + text model. Preferred provider when configured.
+async function callGemini({ prompt, image, max_tokens = 500 }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
 
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+try {
+  const parts = [{ text: prompt }];
+  if (image) {
+    parts.push({ inline_data: { mime_type: image.mediaType, data: image.base64 } });
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens,
-        messages
+        contents: [{ parts }],
+        generationConfig: { maxOutputTokens: max_tokens }
       }),
       signal: controller.signal
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(`Claude API error: ${err.error?.message || response.statusText}`);
     }
+    );
 
-    const data = await response.json();
-    return data.content[0]?.text || null;
-  } finally {
-    clearTimeout(timeout);
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(`Gemini API error: ${err.error?.message || response.statusText}`);
   }
+
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+} finally {
+  clearTimeout(timeout);
+}
+}
+
+// Anthropic Claude — original provider, kept as a fallback if ANTHROPIC_API_KEY is set.
+async function callClaude({ messages, max_tokens = 500 }) {
+  if (!CLAUDE_AVAILABLE) return null; // signals caller to use mock
+
+const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+try {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens,
+      messages
+    }),
+    signal: controller.signal
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(`Claude API error: ${err.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.content[0]?.text || null;
+} finally {
+  clearTimeout(timeout);
+}
+}
+
+// Unified entry point used by routes/ai.js.
+// Prefers Gemini (free tier) when GEMINI_API_KEY is set, falls back to Claude if
+// ANTHROPIC_API_KEY is set instead, and returns null (triggering mock/demo mode)
+// if neither key is configured.
+async function callAI({ prompt, image, max_tokens = 500 }) {
+  if (GEMINI_AVAILABLE) {
+    return callGemini({ prompt, image, max_tokens });
+  }
+
+if (CLAUDE_AVAILABLE) {
+  const content = image
+  ? [
+    { type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.base64 } },
+    { type: 'text', text: prompt }
+    ]
+    : prompt;
+
+  return callClaude({ messages: [{ role: 'user', content }], max_tokens });
+}
+
+return null;
 }
 
 function parseJSONResponse(text) {
   // Strip markdown code fences if present
-  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
   return JSON.parse(cleaned);
 }
 
@@ -78,4 +142,4 @@ function mockCategorise(description) {
   return { category: 'other', confidence: 0.3, reasoning: CATEGORY_REASONS.other };
 }
 
-module.exports = { callClaude, parseJSONResponse, AI_AVAILABLE, mockCategorise };
+module.exports = { callAI, parseJSONResponse, AI_AVAILABLE, mockCategorise };
