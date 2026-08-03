@@ -2,7 +2,7 @@ const CLAUDE_AVAILABLE = !!process.env.ANTHROPIC_API_KEY;
 const GEMINI_AVAILABLE = !!process.env.GEMINI_API_KEY;
 const AI_AVAILABLE = CLAUDE_AVAILABLE || GEMINI_AVAILABLE;
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 
 // Google Gemini — free-tier vision + text model. Preferred provider when configured.
 async function callGemini({ prompt, image, max_tokens = 500 }) {
